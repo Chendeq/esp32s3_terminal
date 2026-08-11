@@ -1,0 +1,23 @@
+dependencies:
+  idf: '>=4.4'
+description: Streaming WAV decoder optimized for embedded devices
+files:
+  exclude:
+  - .claude/**
+  - .github/**
+  - .clang-*
+  - .clangd
+  - .markdownlint.yaml
+  - .pre-commit-config.yaml
+  - CLAUDE.md
+  - tests/**
+  - script/**
+license: Apache-2.0
+maintainers:
+- Kevin Ahrendt <kevin.ahrendt@openhomefoundation.org>
+repository: git://github.com/esphome-libs/micro-wav.git
+repository_info:
+  commit_sha: f61b5299b8b7f61d21e793d3207bd2e27b06d4c9
+  path: .
+url: https://github.com/esphome-libs/micro-wav
+version: 0.2.0

@@ -1,0 +1,70 @@
+file(GLOB_RECURSE SRCS
+    "app_task/*.c"
+    "app_ui/*.c"
+    "datetime/*.c"
+    "music/*.c"
+    "music/*.cpp"
+    "serial/*.c"
+    "weather/*.c"
+    "wifi/*.c"
+    "xfyun_ai/*.c"
+    "game/*.c"
+    "lv_100ask_2048/*.c"
+    "pvz/*.c"
+    "xiaoxiaole/*.c"
+    "yang/*.c"
+
+)
+
+set(INCLUDE_DIRS
+    app_task
+    app_ui
+    datetime
+    music
+    serial
+    weather
+    wifi
+    xfyun_ai
+    game
+    lv_100ask_2048
+    pvz
+    xiaoxiaole
+    yang
+    ${CMAKE_CURRENT_SOURCE_DIR}/app_task
+    ${CMAKE_CURRENT_SOURCE_DIR}/app_ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/datetime
+    ${CMAKE_CURRENT_SOURCE_DIR}/music
+    ${CMAKE_CURRENT_SOURCE_DIR}/serial
+    ${CMAKE_CURRENT_SOURCE_DIR}/weather
+    ${CMAKE_CURRENT_SOURCE_DIR}/wifi
+    ${CMAKE_CURRENT_SOURCE_DIR}/xfyun_ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/game
+    ${CMAKE_CURRENT_SOURCE_DIR}/lv_100ask_2048
+    ${CMAKE_CURRENT_SOURCE_DIR}/pvz
+    ${CMAKE_CURRENT_SOURCE_DIR}/xiaoxiaole
+    ${CMAKE_CURRENT_SOURCE_DIR}/yang
+)
+
+idf_component_register(
+    SRCS ${SRCS}
+    INCLUDE_DIRS ${INCLUDE_DIRS}
+    REQUIRES 
+            driver
+            freertos
+            heap
+            esp_common
+            esp_wifi
+            esp_netif
+            nvs_flash
+            esp_event
+            esp_http_client
+            mbedtls
+            esp_websocket_client
+            sdmmc
+            fatfs
+            json
+            micro-wav
+            bsp
+            middleware
+            ui
+)
