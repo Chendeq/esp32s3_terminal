@@ -85,6 +85,7 @@ void init_scr_del_flag(lv_ui *ui)
     ui->gamechose_del = true;
     ui->gameplay_del = true;
     ui->about_del = true;
+    ui->record_del = true;
 }
 
 void setup_ui(lv_ui *ui)

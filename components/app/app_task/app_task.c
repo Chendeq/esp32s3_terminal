@@ -2,6 +2,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/idf_additions.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "lvgl_port.h"
@@ -11,6 +13,7 @@
 #include "weather.h"
 #include "serial.h"
 #include "music.h"
+#include "mic.h"
 #include "xfyun.h"
 
 
@@ -33,8 +36,6 @@ static TaskHandle_t s_serial_task_handle = NULL;
 
 // 音乐相关变量定义
 static TaskHandle_t s_music_task_handle = NULL;
-static SemaphoreHandle_t s_music_start_sem = NULL;
-static SemaphoreHandle_t s_music_stop_sem = NULL;
 
 // AI相关变量定义
 static TaskHandle_t s_ai_task_handle = NULL;
@@ -272,28 +273,12 @@ static void music_task(void *pvParameters)
 
     while (1)
     {
-        if ((s_music_start_sem == NULL) || (s_music_stop_sem == NULL))
-        {
-            vTaskDelay(pdMS_TO_TICKS(1));
-            continue;
+        /* 等待通知，或播放完成 */
+        if (!music_is_playing()) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         }
-
-        /* 阻塞等待启动信号 */
-        xSemaphoreTake(s_music_start_sem, portMAX_DELAY);
-
-        /* 清除历史停止信号，准备新一轮播放 */
-        xSemaphoreTake(s_music_stop_sem, 0);
-
-        while (1)
-        {
-            /* 非阻塞检查停止信号 */
-            if (xSemaphoreTake(s_music_stop_sem, 0) == pdTRUE)
-            {
-                break;
-            }
-            music_play();
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
+        music_play();
+        vTaskDelay(1);
     }
 }
 
@@ -302,21 +287,6 @@ static void music_task(void *pvParameters)
  */
 static void create_music_task(void)
 {
-    if (s_music_start_sem == NULL)
-    {
-        s_music_start_sem = xSemaphoreCreateBinary();
-        if (s_music_start_sem == NULL) {
-            return;
-        }
-    }
-    if (s_music_stop_sem == NULL)
-    {
-        s_music_stop_sem = xSemaphoreCreateBinary();
-        if (s_music_stop_sem == NULL) {
-            return;
-        }
-    }
-
     if (s_music_task_handle == NULL)
     {
         /* 先初始化音乐 BSP（I2S/解码器） */
@@ -347,29 +317,18 @@ static void create_music_task(void)
  */
 void music_task_start(void)
 {
-    if (s_music_stop_sem != NULL)
-    {
-        xSemaphoreTake(s_music_stop_sem, 0);
-    }
-    if (s_music_start_sem != NULL)
-    {
-        xSemaphoreGive(s_music_start_sem);
+    if (s_music_task_handle != NULL) {
+        xTaskNotifyGive(s_music_task_handle);
     }
 }
 
 /**
- * @brief 停止音乐播放循环
+ * @brief 通知共享播放器停止，任务空闲后等待下一条命令
  */
 void music_task_stop(void) 
 {
-    if (s_music_start_sem != NULL)
-    {
-        xSemaphoreTake(s_music_start_sem, 0);
-    }
-    if (s_music_stop_sem != NULL)
-    {
-        xSemaphoreGive(s_music_stop_sem);
-    }
+    music_cmd_msg_t msg = { .cmd = MUSIC_CMD_STOP };
+    music_send_cmd(&msg);
 }
 
 
@@ -408,6 +367,23 @@ static void create_ai_task(void)
 /**
  * @brief 初始化任务
  */
+esp_err_t mic_tasks_create(TaskHandle_t *writer, TaskHandle_t *capture)
+{
+    if (xTaskCreatePinnedToCoreWithCaps(mic_writer_task, "mic_writer", 6144,
+                                       NULL, 3, writer, 0,
+                                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create mic_writer task");
+        return ESP_ERR_NO_MEM;
+    }
+    if (xTaskCreatePinnedToCoreWithCaps(mic_capture_task, "mic_capture", 4096,
+                                       NULL, 4, capture, 0,
+                                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create mic_capture task");
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
+}
+
 void app_task_init(void)
 {
     bind_wifi_status_event_handler(&guider_ui);
@@ -418,6 +394,11 @@ void app_task_init(void)
     create_serial_task();
     create_music_task();
     create_ai_task();
+    esp_err_t mic_err = mic_init();
+    if (mic_err != ESP_OK) {
+        ESP_LOGE(TAG, "Microphone init failed: %s (0x%x)",
+                 esp_err_to_name(mic_err), (unsigned int)mic_err);
+    }
 }
 
 /* ---------------------------- END ----------------------------- */

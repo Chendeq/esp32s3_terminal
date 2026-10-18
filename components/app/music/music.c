@@ -15,6 +15,7 @@
 #include "freertos/queue.h"
 
 #include "wav_decoder_bridge.h"
+#include "app_task.h"
 
 static const char *TAG = "music";
 
@@ -379,12 +380,12 @@ static void handle_cmd_next(void)
 
 static void handle_cmd_play_pause(void)
 {
-    if (m_current_index < 0 && m_music_count > 0) {
-        handle_cmd_play_index(0);
-    } else if (m_is_playing) {
+    if (m_is_playing) {
         m_pause_flag = !m_pause_flag;
         music_send_event(m_pause_flag ? MUSIC_EVT_PAUSED : MUSIC_EVT_RESUMED);
         ESP_LOGI(TAG, "Playback %s", m_pause_flag ? "paused" : "resumed");
+    } else if (m_music_count > 0) {
+        handle_cmd_play_index(m_current_index < 0 ? 0 : (uint16_t)m_current_index);
     }
 }
 
@@ -424,6 +425,12 @@ static void process_cmd_queue(void)
                 break;
             case MUSIC_CMD_SCAN:
                 music_scan_files();
+                break;
+            case MUSIC_CMD_PLAY_FILE:
+                m_current_index = -1;
+                m_stop_flag = false;
+                m_pause_flag = false;
+                play_song(cmd_msg.data.path);
                 break;
             default:
                 break;
@@ -481,7 +488,10 @@ static esp_err_t ns4168_i2s_init(int sample_rate)
         .dma_frame_num = 512,
         .auto_clear = true,
     };
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    esp_err_t ret = i2s_new_channel(&chan_cfg, &tx_handle, NULL);
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(sample_rate),
@@ -505,13 +515,16 @@ static esp_err_t ns4168_i2s_init(int sample_rate)
 
     std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_RIGHT;
 
-    esp_err_t ret = i2s_channel_init_std_mode(tx_handle, &std_cfg);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2S init failed");
-        return ret;
+    ret = i2s_channel_init_std_mode(tx_handle, &std_cfg);
+    if (ret == ESP_OK) {
+        ret = i2s_channel_enable(tx_handle);
     }
-    i2s_channel_enable(tx_handle);
-    return ESP_OK;
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2S init failed: %s", esp_err_to_name(ret));
+        i2s_del_channel(tx_handle);
+        tx_handle = NULL;
+    }
+    return ret;
 }
 
 static void reset_decoder(void)
@@ -550,7 +563,13 @@ static void play_song(const char *filename)
     }
 
     char fullpath[MUSIC_PATH_MAX_LEN];
-    snprintf(fullpath, sizeof(fullpath), "%s/%s", MUSIC_DIR, filename);
+    bool absolute_path = filename[0] == '/';
+    int length = absolute_path ? snprintf(fullpath, sizeof(fullpath), "%s", filename)
+                               : snprintf(fullpath, sizeof(fullpath), "%s/%s", MUSIC_DIR, filename);
+    if (length < 0 || (size_t)length >= sizeof(fullpath)) {
+        free_buffers();
+        return;
+    }
 
     current_file = fopen(fullpath, "rb");
     if (!current_file) {
@@ -561,15 +580,8 @@ static void play_song(const char *filename)
 
     reset_decoder();
     reset_progress_state();
-    load_lyrics_for_song(filename);
-
-    s_current_sample_rate = 44100;
-    if (ns4168_i2s_init(s_current_sample_rate) != ESP_OK) {
-        fclose(current_file);
-        current_file = NULL;
-        free_buffers();
-        clear_lyrics();
-        return;
+    if (!absolute_path) {
+        load_lyrics_for_song(filename);
     }
 
     m_is_playing = true;
@@ -684,20 +696,24 @@ static bool decode_and_play_frame(void)
                      (unsigned long)sample_rate, (unsigned int)channels,
                      (unsigned int)bits_per_sample);
 
-            if (sample_rate != 44100 || bits_per_sample != 16) {
-                ESP_LOGE(TAG, "Unsupported WAV format: only 44100Hz/16-bit is supported");
+            if (sample_rate < 8000 || sample_rate > 96000 || bits_per_sample != 16 ||
+                (channels != 1 && channels != 2)) {
+                ESP_LOGE(TAG, "Unsupported WAV format: expected 8-96kHz/16-bit mono or stereo");
                 return false;
             }
 
-            if ((int)sample_rate != s_current_sample_rate) {
-                s_current_sample_rate = (int)sample_rate;
-                if (ns4168_i2s_init(s_current_sample_rate) != ESP_OK) {
+            if (tx_handle == NULL || (int)sample_rate != s_current_sample_rate) {
+                if (ns4168_i2s_init((int)sample_rate) != ESP_OK) {
                     return false;
                 }
+                s_current_sample_rate = (int)sample_rate;
             }
 
             if (channels > 0 && bytes_per_sample > 0 && data_chunk_size != UINT32_MAX) {
-                s_total_samples = data_chunk_size / ((uint32_t)channels * (uint32_t)bytes_per_sample);
+                uint16_t format = music_wav_decoder_get_audio_format();
+                uint32_t encoded_bytes = (format == MUSIC_WAV_FORMAT_ALAW ||
+                                          format == MUSIC_WAV_FORMAT_MULAW) ? 1 : bytes_per_sample;
+                s_total_samples = data_chunk_size / ((uint32_t)channels * encoded_bytes);
                 s_total_time_ms =
                     (uint32_t)((s_total_samples * 1000ULL) / (uint64_t)s_current_sample_rate);
             }
@@ -723,10 +739,12 @@ static bool decode_and_play_frame(void)
             apply_volume(pcm_buf, samples_to_write);
 
             size_t bytes_written = 0;
+            uint32_t timeout_ms = (uint32_t)samples_to_write * 1000U /
+                                   (uint32_t)s_current_sample_rate + 100U;
             esp_err_t ret =
                 i2s_channel_write(tx_handle, pcm_buf, (size_t)samples_to_write * sizeof(int16_t),
-                                  &bytes_written, pdMS_TO_TICKS(100));
-            if (ret != ESP_OK) {
+                                  &bytes_written, timeout_ms);
+            if (ret != ESP_OK || bytes_written != (size_t)samples_to_write * sizeof(int16_t)) {
                 ESP_LOGE(TAG, "Failed to write PCM to I2S");
                 return false;
             }
@@ -923,7 +941,11 @@ BaseType_t music_send_cmd(const music_cmd_msg_t *msg)
     if (g_music_cmd_queue == NULL) {
         return pdFALSE;
     }
-    return xQueueSendToBack(g_music_cmd_queue, msg, pdMS_TO_TICKS(10));
+    BaseType_t result = xQueueSendToBack(g_music_cmd_queue, msg, pdMS_TO_TICKS(10));
+    if (result == pdTRUE) {
+        music_task_start();
+    }
+    return result;
 }
 
 void music_play(void)
@@ -954,7 +976,7 @@ void music_play(void)
                 int next = (m_current_index + 1) % m_music_count;
                 switch_to_song(next);
             } else {
-                m_is_playing = false;
+                stop_playback();
             }
         }
     } else {

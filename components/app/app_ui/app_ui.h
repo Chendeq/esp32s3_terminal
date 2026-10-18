@@ -27,6 +27,8 @@ void ai_ui_append_answer(const char *text);
 
 /* 绑定音乐列表事件处理函数 */
 void bind_music_event_handler(lv_ui *ui);
+void bind_mic_event_handler(lv_ui *ui);
+void record_ui_play_file(lv_ui *ui, lv_obj_t *item);
 
 extern lv_ui guider_ui;
 

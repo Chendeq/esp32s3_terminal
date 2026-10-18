@@ -151,6 +151,7 @@ void setup_scr_home(lv_ui *ui)
     ui->home_tileview_1 = lv_tileview_create(ui->home);
     ui->home_tileview_1_tile_1 = lv_tileview_add_tile(ui->home_tileview_1, 0, 0, LV_DIR_BOTTOM);
     ui->home_tileview_1_tile_2 = lv_tileview_add_tile(ui->home_tileview_1, 0, 1, LV_DIR_TOP);
+    ui->home_tileview_1_tile_3 = lv_tileview_add_tile(ui->home_tileview_1, 0, 2, LV_DIR_TOP);
     lv_obj_set_pos(ui->home_tileview_1, 5, 120);
     lv_obj_set_size(ui->home_tileview_1, 305, 110);
     lv_obj_set_scrollbar_mode(ui->home_tileview_1, LV_SCROLLBAR_MODE_ON);
@@ -606,6 +607,69 @@ void setup_scr_home(lv_ui *ui)
     //Write style for home_about_imgbtn, Part: LV_PART_MAIN, State: LV_IMGBTN_STATE_RELEASED.
     lv_obj_set_style_img_recolor_opa(ui->home_about_imgbtn, 0, LV_PART_MAIN|LV_IMGBTN_STATE_RELEASED);
     lv_obj_set_style_img_opa(ui->home_about_imgbtn, 255, LV_PART_MAIN|LV_IMGBTN_STATE_RELEASED);
+
+    //Write codes home_record_label
+    ui->home_record_label = lv_label_create(ui->home_tileview_1_tile_3);
+    lv_label_set_text(ui->home_record_label, "录音机");
+    lv_label_set_long_mode(ui->home_record_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(ui->home_record_label, 10, 76);
+    lv_obj_set_size(ui->home_record_label, 60, 20);
+
+    //Write style for home_record_label, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_border_width(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui->home_record_label, lv_color_hex(0x2c2b2b), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui->home_record_label, &lv_font_Fangzhengcuheisongsimple_16, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui->home_record_label, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui->home_record_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->home_record_label, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+
+    //Write codes home_record_imgbtn
+    ui->home_record_imgbtn = lv_imgbtn_create(ui->home_tileview_1_tile_3);
+    lv_imgbtn_set_src(ui->home_record_imgbtn, LV_IMGBTN_STATE_RELEASED, NULL, &_mic_alpha_64x64, NULL);
+    ui->home_record_imgbtn_label = lv_label_create(ui->home_record_imgbtn);
+    lv_label_set_text(ui->home_record_imgbtn_label, "");
+    lv_label_set_long_mode(ui->home_record_imgbtn_label, LV_LABEL_LONG_WRAP);
+    lv_obj_align(ui->home_record_imgbtn_label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_pad_all(ui->home_record_imgbtn, 0, LV_STATE_DEFAULT);
+    lv_obj_set_pos(ui->home_record_imgbtn, 5, 10);
+    lv_obj_set_size(ui->home_record_imgbtn, 64, 64);
+
+    //Write style for home_record_imgbtn, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_text_color(ui->home_record_imgbtn, lv_color_hex(0x000000), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui->home_record_imgbtn, &lv_font_Fangzhengcuheisongsimple_14, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui->home_record_imgbtn, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_clip_corner(ui->home_record_imgbtn, true, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+
+    //Write style for home_record_imgbtn, Part: LV_PART_MAIN, State: LV_STATE_PRESSED.
+    lv_obj_set_style_img_recolor_opa(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_PRESSED);
+    lv_obj_set_style_img_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(ui->home_record_imgbtn, lv_color_hex(0xFF33FF), LV_PART_MAIN|LV_STATE_PRESSED);
+    lv_obj_set_style_text_font(ui->home_record_imgbtn, &lv_font_montserratMedium_12, LV_PART_MAIN|LV_STATE_PRESSED);
+    lv_obj_set_style_text_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_PRESSED);
+
+    //Write style for home_record_imgbtn, Part: LV_PART_MAIN, State: LV_STATE_CHECKED.
+    lv_obj_set_style_img_recolor_opa(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_CHECKED);
+    lv_obj_set_style_img_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(ui->home_record_imgbtn, lv_color_hex(0xFF33FF), LV_PART_MAIN|LV_STATE_CHECKED);
+    lv_obj_set_style_text_font(ui->home_record_imgbtn, &lv_font_montserratMedium_12, LV_PART_MAIN|LV_STATE_CHECKED);
+    lv_obj_set_style_text_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_STATE_CHECKED);
+    lv_obj_set_style_shadow_width(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_STATE_CHECKED);
+
+    //Write style for home_record_imgbtn, Part: LV_PART_MAIN, State: LV_IMGBTN_STATE_RELEASED.
+    lv_obj_set_style_img_recolor_opa(ui->home_record_imgbtn, 0, LV_PART_MAIN|LV_IMGBTN_STATE_RELEASED);
+    lv_obj_set_style_img_opa(ui->home_record_imgbtn, 255, LV_PART_MAIN|LV_IMGBTN_STATE_RELEASED);
 
     //Write codes home_calendar_label
     ui->home_calendar_label = lv_label_create(ui->home_tileview_1_tile_2);

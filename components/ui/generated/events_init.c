@@ -15,6 +15,7 @@
 #include "serial.h"
 #include "esp_lvgl_port.h"
 #include "music.h"
+#include "mic.h"
 #include "app_task.h"
 #include "app_ui.h"
 #include "xfyun.h"
@@ -137,6 +138,20 @@ static void home_about_imgbtn_event_handler (lv_event_t *e)
     }
 }
 
+static void home_record_imgbtn_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        ui_load_scr_animation(&guider_ui, &guider_ui.record, guider_ui.record_del, &guider_ui.home_del, setup_scr_record, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, true);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 void events_init_home (lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->home_weather_imgbtn, home_weather_imgbtn_event_handler, LV_EVENT_ALL, ui);
@@ -147,6 +162,7 @@ void events_init_home (lv_ui *ui)
     lv_obj_add_event_cb(ui->home_calendar_imgbtn, home_calendar_imgbtn_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->home_game_imgbtn, home_game_imgbtn_event_handler, LV_EVENT_ALL, ui);
     lv_obj_add_event_cb(ui->home_about_imgbtn, home_about_imgbtn_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->home_record_imgbtn, home_record_imgbtn_event_handler, LV_EVENT_ALL, ui);
 }
 
 static void setting_connect_btn_event_handler (lv_event_t *e)
@@ -380,8 +396,6 @@ static void music_back_imgbtn_event_handler (lv_event_t *e)
     switch (code) {
     case LV_EVENT_CLICKED:
     {
-        music_cmd_msg_t msg = { .cmd = MUSIC_CMD_STOP };
-        music_send_cmd(&msg);
         music_task_stop();
         ui_load_scr_animation(&guider_ui, &guider_ui.home, guider_ui.home_del, &guider_ui.music_del, setup_scr_home, LV_SCR_LOAD_ANIM_FADE_ON, 200, 200, false, true);
         break;
@@ -706,6 +720,111 @@ static void about_back_imgbtn_event_handler (lv_event_t *e)
 void events_init_about (lv_ui *ui)
 {
     lv_obj_add_event_cb(ui->about_back_imgbtn, about_back_imgbtn_event_handler, LV_EVENT_ALL, ui);
+}
+
+static void record_update_buttons(lv_ui *ui)
+{
+    mic_record_status_t status;
+    if (!mic_get_record_status(&status)) {
+        return;
+    }
+    bool can_stop = status.state == MIC_RECORD_STARTING || status.state == MIC_RECORDING;
+    bool busy = can_stop || status.state == MIC_RECORD_STOPPING;
+    if (busy) {
+        lv_obj_add_state(ui->record_rec_start_btn, LV_STATE_DISABLED);
+    } else {
+        lv_obj_clear_state(ui->record_rec_start_btn, LV_STATE_DISABLED);
+    }
+    if (can_stop) {
+        lv_obj_clear_state(ui->record_rec_stop_btn, LV_STATE_DISABLED);
+    } else {
+        lv_obj_add_state(ui->record_rec_stop_btn, LV_STATE_DISABLED);
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(ui->record_record_list); ++i) {
+        lv_obj_t *item = lv_obj_get_child(ui->record_record_list, i);
+        if (busy) {
+            lv_obj_add_state(item, LV_STATE_DISABLED);
+        } else {
+            lv_obj_clear_state(item, LV_STATE_DISABLED);
+        }
+    }
+}
+
+void record_list_item_event_handler(lv_event_t *e)
+{
+    record_ui_play_file(lv_event_get_user_data(e), lv_event_get_target(e));
+}
+
+static void record_buttons_timer_cb(lv_timer_t *timer)
+{
+    record_update_buttons(timer->user_data);
+}
+
+static void record_buttons_delete_cb(lv_event_t *e)
+{
+    lv_timer_del(lv_event_get_user_data(e));
+}
+
+static void record_record_imgbtn_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        mic_record_stop();
+        music_task_stop();
+        ui_load_scr_animation(&guider_ui, &guider_ui.home, guider_ui.home_del, &guider_ui.record_del, setup_scr_home, LV_SCR_LOAD_ANIM_NONE, 200, 200, false, true);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void record_rec_start_btn_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        music_cmd_msg_t msg = { .cmd = MUSIC_CMD_STOP };
+        if (g_music_cmd_queue == NULL || music_send_cmd(&msg) == pdTRUE) {
+            mic_record_start();
+        }
+        record_update_buttons(lv_event_get_user_data(e));
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void record_rec_stop_btn_event_handler (lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    switch (code) {
+    case LV_EVENT_CLICKED:
+    {
+        mic_record_stop();
+        record_update_buttons(lv_event_get_user_data(e));
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void events_init_record (lv_ui *ui)
+{
+    lv_obj_add_event_cb(ui->record_record_imgbtn, record_record_imgbtn_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->record_rec_start_btn, record_rec_start_btn_event_handler, LV_EVENT_ALL, ui);
+    lv_obj_add_event_cb(ui->record_rec_stop_btn, record_rec_stop_btn_event_handler, LV_EVENT_ALL, ui);
+    record_update_buttons(ui);
+    lv_timer_t *timer = lv_timer_create(record_buttons_timer_cb, 100, ui);
+    if (timer != NULL) {
+        lv_obj_add_event_cb(ui->record, record_buttons_delete_cb, LV_EVENT_DELETE, timer);
+    }
+    bind_mic_event_handler(ui);
 }
 
 

@@ -2,6 +2,7 @@ file(GLOB_RECURSE SRCS
     "app_task/*.c"
     "app_ui/*.c"
     "datetime/*.c"
+    "mic/*.c"
     "music/*.c"
     "music/*.cpp"
     "serial/*.c"
@@ -20,6 +21,7 @@ set(INCLUDE_DIRS
     app_task
     app_ui
     datetime
+    mic
     music
     serial
     weather
@@ -33,6 +35,7 @@ set(INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/app_task
     ${CMAKE_CURRENT_SOURCE_DIR}/app_ui
     ${CMAKE_CURRENT_SOURCE_DIR}/datetime
+    ${CMAKE_CURRENT_SOURCE_DIR}/mic
     ${CMAKE_CURRENT_SOURCE_DIR}/music
     ${CMAKE_CURRENT_SOURCE_DIR}/serial
     ${CMAKE_CURRENT_SOURCE_DIR}/weather
@@ -67,4 +70,5 @@ idf_component_register(
             bsp
             middleware
             ui
+            i2s_examples_common
 )

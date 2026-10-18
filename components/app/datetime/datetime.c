@@ -5,11 +5,12 @@
 #include "esp_sntp.h"
 #include "time.h"
 #include "esp_err.h"
+#include <stdatomic.h>
 
 static const char *TAG = "datetime";
 
 static bool s_sntp_initialized = false;         // SNTP初始化标志
-static bool s_time_synced = false;              // 时间同步标志
+static atomic_bool s_time_synced = false;       // 时间同步标志
 
 // 星期几的字符串表示
 static const char *week_days[] = {"星期日", "星期一", "星期二", "星期三", 
@@ -18,9 +19,19 @@ static const char *week_days[] = {"星期日", "星期一", "星期二", "星期
 /**
  * @brief 初始化SNTP
  */
+static void datetime_sntp_synced(struct timeval *tv)
+{
+    (void)tv;
+    s_time_synced = true;
+}
+
 static void esp_initialize_sntp(void)
 {    
     ESP_LOGI(TAG, "Initializing SNTP");
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    /* Also track a successful response arriving after the initial wait times out. */
+    esp_sntp_set_time_sync_notification_cb(datetime_sntp_synced);
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);    // 设置为轮询模式
     esp_sntp_setservername(0, "pool.ntp.org");       // 设置服务器0为pool.ntp.org
     esp_sntp_setservername(1, "cn.pool.ntp.org");    // 设置服务器1为cn.pool.ntp.org

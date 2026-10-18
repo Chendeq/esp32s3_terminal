@@ -9,8 +9,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MUSIC_MAX_FILES         128
-#define MUSIC_PATH_MAX_LEN      256
+#define MUSIC_PATH_MAX_LEN      272
 #define MUSIC_NAME_MAX_LEN      128
 
 /* Compatibility aliases for existing UI code. */
@@ -25,6 +29,7 @@ typedef enum {
     MUSIC_CMD_VOLUME,
     MUSIC_CMD_STOP,
     MUSIC_CMD_SCAN,
+    MUSIC_CMD_PLAY_FILE,
 } music_cmd_code_t;
 
 typedef struct {
@@ -32,6 +37,7 @@ typedef struct {
     union {
         uint16_t index;
         uint8_t volume;
+        char path[MUSIC_PATH_MAX_LEN];
     } data;
 } music_cmd_msg_t;
 
@@ -64,6 +70,8 @@ uint8_t music_get_volume(void);
 bool music_is_paused(void);
 bool music_is_playing(void);
 uint32_t music_get_total_time_ms(void);
+/* Reads metadata with a separate decoder, leaving current playback untouched. */
+bool music_get_file_duration_ms(const char *path, uint32_t *duration_ms);
 uint32_t music_get_elapsed_time_ms(void);
 uint8_t music_get_progress_percent(void);
 uint16_t music_get_lyric_count(void);
@@ -73,5 +81,9 @@ const char *music_get_lyric_line(uint16_t index);
 BaseType_t music_send_cmd(const music_cmd_msg_t *msg);
 void music_register_handler(pf_music_event_cb handler);
 void music_play(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

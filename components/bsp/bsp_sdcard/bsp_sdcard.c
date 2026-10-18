@@ -108,10 +108,10 @@ esp_err_t sdcard_init(void)
         ESP_LOGW(TAG, "mount failure %s", esp_err_to_name(ret));
     }
 
-    sdcard_mounted = true;
+    sdcard_mounted = (ret == ESP_OK);
 
     // 6. 打印SD卡信息
     sdcard_get_info();
 
-    return ESP_OK;
+    return ret;
 }

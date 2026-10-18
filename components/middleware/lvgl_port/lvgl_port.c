@@ -18,7 +18,7 @@ static esp_err_t _lv_port_add_display(void)
     const lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = bsp_lcd_get_io_handle(),
         .panel_handle = bsp_lcd_get_panel_handle(),
-        .buffer_size = BSP_LCD_H_RES * 20,
+        .buffer_size = BSP_LCD_H_RES * 40,
         .double_buffer = true,
         .hres = BSP_LCD_H_RES,
         .vres = BSP_LCD_V_RES,

@@ -8,11 +8,13 @@
 #include "datetime.h"
 #include "weather.h"
 #include "gui_guider.h"
+#include "events_init.h"
 #include "esp_lvgl_port.h"
 #include "serial.h"
 #include <stddef.h>
 #include <stdio.h>
 #include "music.h"
+#include "mic.h"
 #include "xfyun.h"
 
 static const char *TAG = "app_ui";
@@ -24,6 +26,11 @@ static uint32_t s_last_music_elapsed_ms = UINT32_MAX;
 static uint32_t s_last_music_total_ms = UINT32_MAX;
 static uint8_t s_last_music_progress = 0xFF;
 static int16_t s_last_music_lyric_index = INT16_MIN;
+static lv_timer_t *s_mic_ui_timer = NULL;
+static uint32_t s_mic_saved_count;
+static bool s_record_file_selected;
+static uint32_t s_record_file_duration_ms;
+static uint32_t s_record_file_saved_count;
 
 lv_ui guider_ui;
 
@@ -737,6 +744,131 @@ void bind_music_event_handler(lv_ui *ui)
 
     if (s_music_ui_timer == NULL) {
         s_music_ui_timer = lv_timer_create(music_ui_refresh_timer_cb, 300, NULL);
+    }
+}
+
+static const char *mic_state_text(mic_record_state_t state)
+{
+    switch (state) {
+        case MIC_RECORD_STARTING: return "Starting";
+        case MIC_RECORDING: return "Recording";
+        case MIC_RECORD_STOPPING: return "Saving";
+        case MIC_RECORD_SAVED: return "Saved";
+        case MIC_RECORD_ERROR: return "Error";
+        default: return "Ready";
+    }
+}
+
+void record_ui_play_file(lv_ui *ui, lv_obj_t *item)
+{
+    mic_record_status_t status;
+    if (!ui || !item || !mic_get_record_status(&status) ||
+        status.state == MIC_RECORD_STARTING || status.state == MIC_RECORDING ||
+        status.state == MIC_RECORD_STOPPING) {
+        return;
+    }
+    const char *name = lv_list_get_btn_text(ui->record_record_list, item);
+    if (name == NULL || name[0] == '\0') {
+        return;
+    }
+    music_cmd_msg_t msg = { .cmd = MUSIC_CMD_PLAY_FILE };
+    int length = snprintf(msg.data.path, sizeof(msg.data.path), MIC_WAV_DIRECTORY "/%s", name);
+    uint32_t duration_ms;
+    if (length < 0 || (size_t)length >= sizeof(msg.data.path) ||
+        !music_get_file_duration_ms(msg.data.path, &duration_ms)) {
+        lv_label_set_text(ui->record_rec_state_label, "WAV error");
+        return;
+    }
+    if (music_send_cmd(&msg) != pdTRUE) {
+        lv_label_set_text(ui->record_rec_state_label, "Play failed");
+        return;
+    }
+    s_record_file_selected = true;
+    s_record_file_duration_ms = duration_ms;
+    s_record_file_saved_count = status.saved_count;
+    char duration[12];
+    music_format_time(duration_ms, duration, sizeof(duration));
+    lv_label_set_text(ui->record_duration_label, duration);
+    lv_label_set_text(ui->record_rec_state_label, "Playing");
+}
+
+static bool mic_ui_load_files(lv_ui *ui)
+{
+    mic_wav_file_t *files = NULL;
+    size_t count = 0;
+    esp_err_t err = mic_get_wav_files(&files, &count);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Read WAV list failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    lv_obj_clean(ui->record_record_list);
+    ui->record_record_list_item0 = NULL;
+    for (size_t i = 0; i < count; ++i) {
+        lv_obj_t *row = lv_list_add_btn(ui->record_record_list, NULL, files[i].name);
+        lv_label_set_long_mode(lv_obj_get_child(row, 0), LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_font(row, &lv_font_Fangzhengcuheisongsimple_14, 0);
+        lv_obj_set_style_text_color(row, lv_color_hex(0x0D3055), 0);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0xffffff), 0);
+        lv_obj_add_event_cb(row, record_list_item_event_handler, LV_EVENT_CLICKED, ui);
+    }
+    mic_free_wav_files(files);
+    lv_obj_scroll_to_y(ui->record_record_list, 0, LV_ANIM_OFF);
+    return true;
+}
+
+static void mic_ui_refresh_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    mic_record_status_t status;
+    if (!mic_get_record_status(&status) || !guider_ui.record ||
+        !lv_obj_is_valid(guider_ui.record)) {
+        return;
+    }
+    bool recording = status.state == MIC_RECORD_STARTING || status.state == MIC_RECORDING ||
+                     status.state == MIC_RECORD_STOPPING;
+    if (recording || s_record_file_saved_count != status.saved_count) {
+        s_record_file_selected = false;
+    }
+    if (guider_ui.record_duration_label && lv_obj_is_valid(guider_ui.record_duration_label)) {
+        uint32_t seconds = (s_record_file_selected ? s_record_file_duration_ms
+                                                   : mic_get_record_elapsed_ms()) / 1000U;
+        lv_label_set_text_fmt(guider_ui.record_duration_label, "%02lu:%02lu",
+                              (unsigned long)(seconds / 60U),
+                              (unsigned long)(seconds % 60U));
+    }
+    if (guider_ui.record_rec_state_label && lv_obj_is_valid(guider_ui.record_rec_state_label)) {
+        const char *text = s_record_file_selected && music_is_playing() ? "Playing"
+                                                                     : mic_state_text(status.state);
+        lv_label_set_text(guider_ui.record_rec_state_label, text);
+    }
+    /* A completion counter also catches saves between timer ticks or before a new start. */
+    if (s_mic_saved_count != status.saved_count && mic_ui_load_files(&guider_ui)) {
+        s_mic_saved_count = status.saved_count;
+    }
+}
+
+static void mic_ui_delete_cb(lv_event_t *event)
+{
+    lv_ui *ui = lv_event_get_user_data(event);
+    if (ui != NULL && lv_event_get_target(event) == ui->record) {
+        if (s_mic_ui_timer != NULL) {
+            lv_timer_del(s_mic_ui_timer);
+            s_mic_ui_timer = NULL;
+        }
+        s_record_file_selected = false;
+    }
+}
+
+void bind_mic_event_handler(lv_ui *ui)
+{
+    s_record_file_selected = false;
+    lv_obj_add_event_cb(ui->record, mic_ui_delete_cb, LV_EVENT_DELETE, ui);
+    lv_obj_clean(ui->record_record_list);
+    ui->record_record_list_item0 = NULL;
+    s_mic_saved_count = UINT32_MAX;
+    mic_ui_refresh_timer_cb(NULL);
+    if (s_mic_ui_timer == NULL) {
+        s_mic_ui_timer = lv_timer_create(mic_ui_refresh_timer_cb, 300, NULL);
     }
 }
 

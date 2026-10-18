@@ -28,6 +28,8 @@ void events_init_calendar(lv_ui *ui);
 void events_init_gamechose(lv_ui *ui);
 void events_init_gameplay(lv_ui *ui);
 void events_init_about(lv_ui *ui);
+void events_init_record(lv_ui *ui);
+void record_list_item_event_handler(lv_event_t *e);
 
 #ifdef __cplusplus
 }
