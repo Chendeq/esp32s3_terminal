@@ -8,6 +8,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
+#include "onenet_ota.h"
 
 static const char *TAG = "main";
 
@@ -20,6 +21,13 @@ void app_main(void)
     {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
+    ret = onenet_ota_init();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to init OneNET OTA rollback protection: %s",
+                 esp_err_to_name(ret));
     }
 
     ret = lv_port_init();

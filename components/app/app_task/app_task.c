@@ -15,6 +15,7 @@
 #include "music.h"
 #include "mic.h"
 #include "xfyun.h"
+#include "onenet_mqtt.h"
 
 
 static const char *TAG = "app_task";
@@ -39,6 +40,9 @@ static TaskHandle_t s_music_task_handle = NULL;
 
 // AI相关变量定义
 static TaskHandle_t s_ai_task_handle = NULL;
+
+// OneNET MQTT startup task
+static TaskHandle_t s_onenet_task_handle = NULL;
 
 
 /* -------------------- WIFI任务实现（core 0） -------------------- */
@@ -362,6 +366,51 @@ static void create_ai_task(void)
 
 /* --------------------------- END AI任务实现 ---------------------------*/
 
+
+
+/* --------------------------- OneNET task --------------------------- */
+
+static void onenet_task(void *pvParameters)
+{
+    (void)pvParameters;
+
+    while (1) {
+        while (!wifi_connect_state()) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+
+        esp_err_t ret = onenet_start();
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "OneNET MQTT client started, waiting for broker connection");
+            break;
+        }
+
+        ESP_LOGE(TAG, "OneNET MQTT start failed: %s, retrying...",
+                 esp_err_to_name(ret));
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+
+    s_onenet_task_handle = NULL;
+    vTaskDelete(NULL);
+}
+
+static void create_onenet_task(void)
+{
+    if (s_onenet_task_handle != NULL) {
+        return;
+    }
+
+    BaseType_t ret = xTaskCreatePinnedToCore(onenet_task, "onenet_task",
+                                             4096, NULL, 2,
+                                             &s_onenet_task_handle, 0);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create OneNET task");
+        s_onenet_task_handle = NULL;
+    }
+}
+
+/* --------------------------- END OneNET task --------------------------- */
+
 /* ----------------------- task_init函数，外部调用 ----------------------- */
 
 /**
@@ -389,6 +438,7 @@ void app_task_init(void)
     bind_wifi_status_event_handler(&guider_ui);
     bind_music_event_handler(&guider_ui);
     create_wifi_task();
+    create_onenet_task();
     create_datetime_task();
     create_weather_task();
     create_serial_task();

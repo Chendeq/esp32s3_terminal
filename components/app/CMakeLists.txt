@@ -5,6 +5,7 @@ file(GLOB_RECURSE SRCS
     "mic/*.c"
     "music/*.c"
     "music/*.cpp"
+    "onenet/*.c"
     "serial/*.c"
     "weather/*.c"
     "wifi/*.c"
@@ -14,7 +15,6 @@ file(GLOB_RECURSE SRCS
     "pvz/*.c"
     "xiaoxiaole/*.c"
     "yang/*.c"
-
 )
 
 set(INCLUDE_DIRS
@@ -23,6 +23,7 @@ set(INCLUDE_DIRS
     datetime
     mic
     music
+    onenet
     serial
     weather
     wifi
@@ -37,6 +38,7 @@ set(INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/datetime
     ${CMAKE_CURRENT_SOURCE_DIR}/mic
     ${CMAKE_CURRENT_SOURCE_DIR}/music
+    ${CMAKE_CURRENT_SOURCE_DIR}/onenet
     ${CMAKE_CURRENT_SOURCE_DIR}/serial
     ${CMAKE_CURRENT_SOURCE_DIR}/weather
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi
@@ -61,7 +63,11 @@ idf_component_register(
             nvs_flash
             esp_event
             esp_http_client
+            esp_https_ota
+            app_update
+            esp_app_format
             mbedtls
+            mqtt
             esp_websocket_client
             sdmmc
             fatfs
